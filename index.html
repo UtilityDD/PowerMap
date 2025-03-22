@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Power Map</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" rel="stylesheet"/>
+
+    <style>
+
+
+@keyframes fade {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+    }
+
+    #loading-screen {
+        position: fixed;
+        width: 100%;
+        height: 100vh;
+        background: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        font-size: 24px;
+        font-family: Arial, sans-serif;
+        font-weight: bold;
+    }
+
+        #map {
+            height: 100vh;
+            background: white;
+        }
+
+        .leaflet-tooltip {
+            background: white;
+            border: 1px solid black;
+            padding: 1px 2px;
+            font-size: 10px;
+        }
+
+        #floating-table {
+            position: fixed;
+            top: 50px;
+            right: 20px;
+            background: white;
+            border: 1px solid black;
+            padding: 8px;
+            opacity: 80%;
+            height: 520px; /* Set a fixed height */
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 10000; /* Ensure it stays above the map */
+            font-family: Arial, sans-serif;
+            overflow: hidden; /* Hide overflow from table head */
+        }
+
+        #table-container {
+            max-height: 500px; /* Adjust height for scrolling */
+            overflow-y: auto; /* Enable vertical scroll */
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 1px;
+            text-align: left;
+        }
+
+        th {
+            background: #f4f4f4;
+        }
+
+        #map {
+            height: 100vh;
+            z-index: 0; /* Ensures the map stays behind */
+        }
+
+
+        #floating-table h3 {
+            margin: 0;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        #floating-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #floating-table th, #floating-table td {
+            border: 1px solid black;
+            padding: 1px;
+            font-size: 10px;
+            text-align: center;
+        }
+
+        #floating-table th {
+            background: #f0f0f0;
+            position: sticky;
+            top: 0;
+        }
+
+        #map-legend {
+            position: fixed;
+            bottom: 10px;
+            right: 14px;
+            background: rgba(174, 172, 172, 0.475);
+            padding: 5px 10px;
+            border: 1px solid black;
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.3);
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            z-index: 1000;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 15px; /* Spacing between items */
+            white-space: nowrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+
+        }
+
+
+        #search-container {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 5px 10px;
+            border: 1px solid black;
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #search-box {
+            width: 250px;
+            padding: 2px;
+            border: 1px solid gray;
+            font-size: 14px;
+        }
+
+        #search-results {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            max-height: 150px;
+            overflow-y: auto;
+            width: 100%;
+            background: white;
+            border: 1px solid gray;
+            display: none;
+            position: absolute;
+            top: 35px;
+            left: 0;
+        }
+
+        #search-results li {
+            padding: 5px;
+            cursor: pointer;
+            border-bottom: 1px solid #ddd;
+        }
+
+        #search-results li:hover {
+            background: #f0f0f0;
+        }
+
+        #summary-card {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0);
+            padding: 1px;
+            border: 1px solid rgba(0, 0, 0, 0);
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0);
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            z-index: 10000;
+            text-align: center;
+        }
+
+        #filter-container {
+            position: fixed;
+            top: 110px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border: 1px solid black;
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.3);
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            z-index: 1000;
+            border-radius: 5px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .filter-category {
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .filter-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <p id="loading-text">Loading map...</p>
+    </div>
+
+<div id="filter-container">
+    <h3>Filter Options</h3>
+    <div id="filter-options"></div>
+    <button onclick="applyFilters()">Apply Filters</button>
+</div>
+
+
+<div id="summary-card">
+    <h4 style="align-items: center; color: red;">Total: <span id="total-substations">0</span> no. / <span
+            id="total-capacity">0</span> MVA (including 33/11kV PTRs at GSS)</h4>
+
+</div>
+
+
+<div id="floating-table">
+    <h3>Substations</h3>
+    <div id="table-container">
+        <table>
+            <thead>
+            <tr>
+                <th>Substation</th>
+                <th>MVA</th>
+            </tr>
+            </thead>
+            <tbody id="table-body">
+            <!-- Data will be populated here -->
+            </tbody>
+        </table>
+    </div>
+</div>
+<div id="search-container">
+    <input id="search-box" onkeydown="handleSearch(event)" placeholder="Search Substation..." type="text">
+    <ul id="search-results"></ul>
+</div>
+
+<div id="map-legend">
+    <div class="legend-item"><span class="legend-circle red"></span> Existing 33/11kV SS</div>
+    <div class="legend-item"><span class="legend-circle yellow"></span> GSS</div>
+    <div class="legend-item"><span class="legend-circle blue"></span> Proposed 33/11kV SS</div>
+    <div class="legend-item"><span class="legend-line solid"></span> Existing 33kV Feeder</div>
+    <div class="legend-item"><span class="legend-line dotted"></span> Proposed 33kV Feeder</div>
+</div>
+
+
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-polylinedecorator/1.6.0/leaflet.polylineDecorator.min.js"></script>
+
+
+<script>
+
+    var map = L.map('map', {
+        zoomControl: true,
+        minZoom: 7,
+    }).setView([23.5, 87.5], 7);
+
+    // Load the tile layer first for a faster visible map
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+
+    var geojsonUrl = 'https://raw.githubusercontent.com/shuklaneerajdev/IndiaStateTopojsonFiles/master/WestBengal.geojson';
+    var csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT8hYE6YBbfVQDJhgB3cIWqrrGrjMQAQ22mcmCJTOa995gCH-xBAfsAPpBvNYS1KlYIFMRHM59iGB7K/pub?output=csv';
+
+    var worldPolygon = {
+        "type": "Feature",
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [[
+                [-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]
+            ]]
+        }
+    };
+
+    fetch(geojsonUrl)
+        .then(response => response.json())
+        .then(data => {
+            var stateLayer = L.geoJSON(data, {
+                style: {
+                    color: "black",
+                    weight: 1.5,
+                    fillOpacity: 0
+                }
+            }).addTo(map);
+
+            data.features.forEach(feature => {
+                if (feature.geometry.type === "Polygon") {
+                    worldPolygon.geometry.coordinates.push(feature.geometry.coordinates[0]);
+                } else if (feature.geometry.type === "MultiPolygon") {
+                    feature.geometry.coordinates.forEach(polygon => {
+                        worldPolygon.geometry.coordinates.push(polygon[0]);
+                    });
+                }
+            });
+
+            var maskLayer = L.geoJSON(worldPolygon, {
+                style: {
+                    color: "white",
+                    weight: 1,
+                    fillColor: "white",
+                    fillOpacity: 0.85
+                }
+            }).addTo(map);
+
+            map.fitBounds(stateLayer.getBounds());
+            stateLayer.bringToFront();
+        })
+        .catch(error => console.error('Error loading GeoJSON:', error));
+
+    function dmsToDecimal(dms) {
+        let parts = dms.match(/[NSWE]?\d+°\d+\.\d+'/g);
+        if (!parts) return NaN;
+        let degrees = parseFloat(parts[0].match(/\d+/)[0]);
+        let minutes = parseFloat(parts[0].match(/\d+\.\d+/g)[0]);
+        let decimal = degrees + minutes / 60;
+        if (dms.includes('S') || dms.includes('W')) decimal *= -1;
+        return decimal;
+    }
+
+    function fetchCSV(url) {
+        return fetch(url)
+            .then(response => response.text())
+            .then(csvText => {
+                let rows = csvText.trim().split('\n').map(row => row.split(','));
+                let headers = rows[0].map(header => header.trim());
+                let data = rows.slice(1).map(row => {
+                    let obj = {};
+                    row.forEach((val, index) => {
+                        obj[headers[index]] = val ? val.trim() : '';
+                    });
+                    return obj;
+                }).filter(entry => entry.LATITUDE && entry.LONGITUDE);
+                return data;
+            });
+    }
+
+    // 1️⃣ Create the Filter Panel Before Loading the Map
+    let selectedFilters = {Region: new Set(), Division: new Set(), Remarks: new Set()};
+
+    function createFilterOptions(data) {
+        let filterContainer = document.getElementById("filter-options");
+        filterContainer.innerHTML = "";
+
+        let uniqueValues = {Region: new Set(), Division: new Set(), Remarks: new Set()};
+
+        data.forEach(entry => {
+            if (entry.Region.trim()) uniqueValues.Region.add(entry.Region.trim());
+            if (entry.Division.trim()) uniqueValues.Division.add(entry.Division.trim());
+            if (entry.Remarks.trim()) uniqueValues.Remarks.add(entry.Remarks.trim());
+        });
+
+        ["Region", "Division", "Remarks"].forEach(category => {
+            let categoryDiv = document.createElement("div");
+            categoryDiv.classList.add("filter-category");
+            categoryDiv.textContent = category;
+            filterContainer.appendChild(categoryDiv);
+
+            uniqueValues[category].forEach(value => {
+                let filterItem = document.createElement("div");
+                filterItem.classList.add("filter-item");
+
+                let checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.checked = true;
+                checkbox.dataset.category = category;
+                checkbox.value = value;
+
+                let label = document.createElement("label");
+                label.textContent = value;
+
+                filterItem.appendChild(checkbox);
+                filterItem.appendChild(label);
+                filterContainer.appendChild(filterItem);
+
+                checkbox.addEventListener("change", function () {
+                    if (this.checked) {
+                        selectedFilters[category].add(this.value);
+                    } else {
+                        selectedFilters[category].delete(this.value);
+                    }
+                });
+
+                selectedFilters[category].add(value);
+            });
+        });
+    }
+
+    // 2️⃣ Apply Filters to Load Only Selected Substations & Connections
+    function applyFilters() {
+        map.eachLayer(layer => {
+            if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                map.removeLayer(layer);
+            }
+        });
+
+        fetchCSV(csvUrl).then(data => {
+            console.log(selectedFilters);
+            console.log(data);
+            let filteredData = data.filter(entry =>
+                (!entry.Region.trim() || selectedFilters.Region.has(entry.Region.trim())) &&
+                (!entry.Division.trim() || selectedFilters.Division.has(entry.Division.trim())) &&
+                (!entry.Remarks.trim() || selectedFilters.Remarks.has(entry.Remarks.trim()))
+
+
+            );
+
+            console.log(filteredData);
+            console.log("Hello World!");
+
+            plotMapData(filteredData);
+            populateTable(filteredData); // ✅ Now updates the table too
+            updateSummary(filteredData); // ✅ Updates total count
+            restoreMapBorders(); // Ensure map borders remain visible
+            restoreMaskLayer(); // Ensure the mask layer is reapplied after filtering
+        });
+    }
+
+    function restoreMaskLayer() {
+        var maskLayer = L.geoJSON(worldPolygon, {
+            style: {
+                color: "white",
+                weight: 1,
+                fillColor: "white",
+                fillOpacity: 0.85
+            }
+        }).addTo(map);
+        maskLayer.bringToBack();
+    }
+
+    function restoreMapBorders() {
+        fetch(geojsonUrl)
+            .then(response => response.json())
+            .then(data => {
+                var stateLayer = L.geoJSON(data, {
+                    style: {
+                        color: "black",
+                        weight: 1.5,
+                        fillOpacity: 0
+                    }
+                }).addTo(map);
+                stateLayer.bringToFront(); // Ensure borders remain visible
+            })
+            .catch(error => console.error('Error loading GeoJSON:', error));
+    }
+
+    // 3️⃣ Modified Data Plotting Function (Keeps Everything Else Unchanged)
+    function plotMapData(data) {
+        let substationMap = {};
+        let connectionMap = {};
+
+        data.forEach(entry => {
+            let lat = dmsToDecimal(entry.LATITUDE);
+            let lng = dmsToDecimal(entry.LONGITUDE);
+            if (!isNaN(lat) && !isNaN(lng) && entry.Substation) {
+                let markerColor = (entry.Comment && ["black", "white", "red", "blue", "green", "yellow", "purple", "orange"].includes(entry.Comment.trim().toLowerCase()))
+                    ? entry.Comment.trim().toLowerCase()
+                    : "black";
+
+                let symbol = entry.Symbol ? entry.Symbol.trim() : "⚡";
+                let fontSize = entry.SymbolSize && !isNaN(entry.SymbolSize) ? parseInt(entry.SymbolSize) : 18;
+                let size = fontSize * 1.2;
+                let iconSize = [size, size];
+                let iconAnchor = [size / 2, size / 2];
+
+                let marker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: "custom-symbol",
+                        html: `<div style="
+                        width: ${size}px; 
+                        height: ${size}px; 
+                        display: flex; 
+                        align-items: center; 
+                        justify-content: center; 
+                        border-radius: 50%; 
+                        font-size: ${fontSize}px; 
+                        font-weight: bold; 
+                        color: ${markerColor};
+                        text-align: center;">
+                        ${symbol}
+                    </div>`,
+                        iconSize: iconSize,
+                        iconAnchor: iconAnchor
+                    })
+                }).addTo(map)
+                    .bindTooltip(entry.Substation, {permanent: true, direction: "top", className: "leaflet-tooltip"})
+                    .bindPopup(`<b>${entry.Substation}</b><br>Capacity: ${entry['MVA']}<br>Para-2: ${entry['Para-2']}<br>Para-3: ${entry['Para-3']}`);
+
+                substationMap[entry.Substation] = {lat, lng, marker};
+            }
+        });
+
+        data.forEach(entry => {
+            if (entry['Connected to']) {
+                let connections = entry['Connected to'].split(':').map(s => s.trim());
+                let labels = entry['RL'] ? entry['RL'].split(':').map(s => s.trim()) : [];
+
+                connections.forEach((target, index) => {
+                    let isValidConnection =
+                        substationMap[target] &&
+                        substationMap[entry.Substation] &&
+                        (!entry.Region.trim() || selectedFilters.Region.has(entry.Region.trim())) &&
+                        (!entry.Division.trim() || selectedFilters.Division.has(entry.Division.trim())) &&
+                        (!entry.Remarks.trim() || selectedFilters.Remarks.has(entry.Remarks.trim()));
+
+                    if (isValidConnection) {
+                        let from = substationMap[entry.Substation];
+                        let to = substationMap[target];
+
+                        let key = [entry.Substation, target].sort().join("-");
+                        if (!connectionMap[key]) {
+                            connectionMap[key] = {count: 0, labels: new Set()};
+                        }
+                        let offsetIndex = connectionMap[key].count++;
+
+                        let dx = to.lng - from.lng;
+                        let dy = to.lat - from.lat;
+                        let length = Math.sqrt(dx * dx + dy * dy);
+
+                        if (length > 0) {
+                            let offsetAmount = 0.0020 * offsetIndex;
+                            let perpX = (-dy / length) * offsetAmount;
+                            let perpY = (dx / length) * offsetAmount;
+
+                            let fromOffset = [from.lat + perpY, from.lng + perpX];
+                            let toOffset = [to.lat + perpY, to.lng + perpX];
+
+                            let combinedLine = L.polyline([
+                                [from.lat, from.lng], fromOffset, toOffset, [to.lat, to.lng]
+                            ], {
+                                color: entry['Colour'] ? entry['Colour'].trim() : "blue",
+                                weight: 3,
+                                dashArray: entry['LineStyle'] === "dashed" ? "5,5" : null,
+                                opacity: 0.9
+                            }).addTo(map);
+                            combinedLine.bringToFront();
+
+                            let label = labels[index] || "";
+                            if (label) {
+                                let label1Lat = fromOffset[0] + (2 / 3) * (toOffset[0] - fromOffset[0]);
+                                let label1Lng = fromOffset[1] + (2 / 3) * (toOffset[1] - fromOffset[1]);
+
+                                let label2Lat = toOffset[0] + (2 / 3) * (fromOffset[0] - toOffset[0]);
+                                let label2Lng = toOffset[1] + (2 / 3) * (fromOffset[1] - toOffset[1]);
+
+                                let labelTooltip1 = L.tooltip({
+                                    permanent: true,
+                                    direction: "center",
+                                    className: "line-label"
+                                })
+                                    .setContent(label)
+                                    .setLatLng([label1Lat, label1Lng]);
+
+                                let labelTooltip2 = L.tooltip({
+                                    permanent: true,
+                                    direction: "center",
+                                    className: "line-label"
+                                })
+                                    .setContent(label)
+                                    .setLatLng([label2Lat, label2Lng]);
+
+                                combinedLine.bindTooltip(labelTooltip1);
+                                combinedLine.bindTooltip(labelTooltip2);
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    // 4️⃣ Ensure Filter Panel Loads Before the Map
+    fetchCSV(csvUrl).then(data => {
+        createFilterOptions(data);
+        plotMapData(data);
+    })
+
+
+            .catch(error => console.error('Error loading CSV:', error));
+
+
+    map.on('mousemove', function (e) {
+        var hovered = false;
+
+        map.eachLayer(function (layer) {
+            if (layer instanceof L.Polyline || layer instanceof L.Marker) {
+                if (map.getBounds().contains(layer.getLatLng ? layer.getLatLng() : layer.getBounds())) {
+                    hovered = true;
+                }
+            }
+        });
+
+        map._container.style.cursor = hovered ? 'pointer' : 'grab';
+    });
+
+    function populateTable(data) {
+        let tableBody = document.getElementById("table-body");
+        tableBody.innerHTML = ""; // Clear table before updating
+
+        if (!data.length) {
+            console.warn("No data to display in the table.");
+            return;
+        }
+
+        // Ensure correct column names by normalizing headers
+        let firstEntry = data[0];
+        let keys = Object.keys(firstEntry).map(key => key.trim());
+
+        let substationIndex = keys.indexOf("Substation");
+        let mvaIndex = keys.indexOf("MVA");
+
+        if (substationIndex === -1 || mvaIndex === -1) {
+            console.error("Error: 'Substation' or 'MVA' column not found.");
+            return;
+        }
+
+        // Sort data alphabetically by substation name
+        data.sort((a, b) => (a.Substation || "").localeCompare(b.Substation || ""));
+
+        data.forEach(entry => {
+            let substation = entry.Substation ? entry.Substation.trim() : "";
+            let mva = entry.MVA ? entry.MVA.trim() : "";
+
+            if (substation && mva) { // Only add valid entries
+                let row = document.createElement("tr");
+                row.innerHTML = `<td>${substation}</td><td>${mva}</td>`;
+                tableBody.appendChild(row);
+            }
+        });
+
+        console.log("Table updated successfully with filtered data.");
+    }
+
+
+    // Fetch CSV and Populate Table
+    fetch(csvUrl)
+        .then(response => response.text())
+        .then(csvText => {
+            let data = Papa.parse(csvText, {header: true}).data;
+
+            console.log("Parsed CSV Data:", data);
+            if (data.length > 0) {
+                populateTable(data);
+            } else {
+                console.error("Parsed data is empty.");
+            }
+        })
+        .catch(error => console.error("Error fetching or parsing CSV:", error));
+
+    // Call this function after fetching CSV data
+    fetch(csvUrl)
+        .then(response => response.text())
+        .then(csvText => {
+            console.log("CSV Data Loaded:", csvText); // Debugging output
+            let data = Papa.parse(csvText, {header: true}).data;
+            console.log("Parsed Data:", data); // Check parsed data
+            populateTable(data);
+        })
+        .catch(error => console.error("Error fetching CSV:", error));
+
+    let substationMap = {}; // Store substation data for search
+
+    function handleSearch(event) {
+        if (event.key === "Enter") {
+            let query = document.getElementById("search-box").value.trim();
+            if (query) {
+                focusSubstation(query);
+            }
+        }
+    }
+
+    function focusSubstation(name) {
+        console.log("Searching for:", name); // Debugging
+
+        let foundMarker = null;
+        let lowercaseQuery = name.trim().toLowerCase();
+
+        map.eachLayer(layer => {
+            if (layer instanceof L.Marker && layer.getPopup()) {
+                let popupContent = layer.getPopup().getContent();
+                let label = popupContent.split("<br>")[0].replace("<b>", "").replace("</b>", "").trim().toLowerCase();
+
+                console.log("Checking Label:", label); // Debugging
+
+                if (label.includes(lowercaseQuery)) {
+                    foundMarker = layer;
+                }
+            }
+        });
+
+        if (foundMarker) {
+            let latlng = foundMarker.getLatLng();
+            map.flyTo(latlng, 14, {duration: 1.5, easeLinearity: 0.3}); // Smooth zoom animation
+            setTimeout(() => foundMarker.openPopup(), 1500); // Delay popup opening until zoom completes
+            console.log("Found and focused:", latlng);
+        } else {
+            alert("Substation not found!");
+            console.warn("Substation not found:", name);
+        }
+    }
+
+
+    function updateSummary(data) {
+        let totalSubstations = data.length;
+        let totalCapacity = data.reduce((sum, entry) => sum + (parseFloat(entry['MVA']) || 0), 0);
+
+        document.getElementById("total-substations").textContent = totalSubstations;
+        document.getElementById("total-capacity").textContent = totalCapacity.toFixed(2);
+    }
+
+    fetch(csvUrl)
+        .then(response => response.text())
+        .then(csvText => {
+            let data = Papa.parse(csvText, {header: true}).data;
+            updateSummary(data);
+        })
+        .catch(error => console.error("Error fetching CSV:", error));
+    // Listen for right-click event on the map
+    map.on("contextmenu", function (event) {
+        let clickedLatLng = event.latlng;
+        let nearestSubstation = findNearestSubstation(clickedLatLng);
+
+        if (nearestSubstation) {
+            let csvContent = generateCSV(nearestSubstation);
+            downloadCSV(csvContent);
+        } else {
+            alert("No substation found near this location.");
+        }
+    });
+
+    // Function to find the nearest substation
+    function findNearestSubstation(clickedLatLng) {
+        let nearest = null;
+        let minDistance = Infinity;
+
+        map.eachLayer(layer => {
+            if (layer instanceof L.CircleMarker) {
+                let latlng = layer.getLatLng();
+                let distance = map.distance(clickedLatLng, latlng);
+
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearest = {
+                        region: layer.options.region || "Unknown",
+                        division: layer.options.division || "Unknown",
+                        substation: layer.getTooltip().getContent() || "Unknown",
+                        mva: layer.options.mva || "Unknown"
+                    };
+                }
+            }
+        });
+
+        return nearest;
+    }
+
+
+    function updateLegend(data) {
+        let legendContainer = document.getElementById("map-legend");
+        legendContainer.innerHTML = ""; // Clear existing legend
+
+        let legendItems = new Set(); // Avoid duplicate entries
+
+        data.forEach(entry => {
+            if (entry.LegendSymbol && entry.LegendText && entry.LegendColour) {
+                let symbol = entry.LegendSymbol.trim();
+                let text = entry.LegendText.trim();
+                let color = entry.LegendColour.trim().toLowerCase(); // Use as-is
+
+                // Prevent duplicate legend items
+                let legendKey = `${symbol}-${text}-${color}`;
+                if (!legendItems.has(legendKey)) {
+                    legendItems.add(legendKey);
+
+                    // Create a legend item
+                    let legendItem = document.createElement("div");
+                    legendItem.classList.add("legend-item");
+
+                    // Create symbol container
+                    let symbolElement = document.createElement("span");
+                    symbolElement.style.fontSize = "18px";
+                    symbolElement.style.fontWeight = "bold";
+                    symbolElement.style.marginRight = "5px";
+                    symbolElement.style.color = color; // Apply color from CSV
+                    symbolElement.innerText = symbol;
+
+                    // Append symbol and text to legend
+                    legendItem.appendChild(symbolElement);
+                    legendItem.appendChild(document.createTextNode(text));
+
+                    legendContainer.appendChild(legendItem);
+                }
+            }
+        });
+    }
+
+    // Fetch CSV and update legend
+    fetchCSV(csvUrl).then(data => {
+        updateLegend(data);
+    });
+
+    let messages = ["Loading map...", "Please wait..."];
+    let index = 0;
+    function updateLoadingText() {
+        document.getElementById("loading-text").textContent = messages[index];
+        index = (index + 1) % messages.length;
+    }
+    let textInterval = setInterval(updateLoadingText, 1000);
+
+    window.addEventListener("load", function () {
+        clearInterval(textInterval);
+        document.getElementById("loading-screen").style.display = "none";
+    });
+</script>
+</body>
+</html>
